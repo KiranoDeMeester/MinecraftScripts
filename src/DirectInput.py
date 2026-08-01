@@ -6,6 +6,9 @@ KEY_W = 0x11
 KEY_A = 0x1E
 KEY_S = 0x1F
 KEY_D = 0x20
+KEY_C = 0x2E
+KEY_F3 = 0x3D
+KEY_LCTRL = 0x1D
 KEY_SPACE = 0x39
 KEY_1 = 0x02
 KEY_2 = 0x03
@@ -92,3 +95,13 @@ def click_mouse_right(duration=3.2):
 
 def move_mouse(dx, dy):
     ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, 0)
+
+def trigger_f3_c():
+    """Triggers F3+C to copy player position and yaw to Windows Clipboard"""
+    press_key(KEY_F3)
+    time.sleep(0.1)
+    press_key(KEY_C)
+    time.sleep(0.3)
+    release_key(KEY_C)
+    release_key(KEY_F3)
+    time.sleep(0.2)

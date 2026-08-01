@@ -4,9 +4,10 @@ import threading
 import sys
 from pynput.keyboard import Key, Listener as KeyboardListener
 from src.ChatNotifier import send_mc_chat
+from src.F3PositionTracker import get_minecraft_position
 from src.DirectInput import (
     press_key, release_key, hold_key, click_mouse_left, click_mouse_right, move_mouse,
-    KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
+    KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LCTRL, KEY_1, KEY_2, KEY_3
 )
 
 class BotEngine:
@@ -50,6 +51,7 @@ class BotEngine:
         self.active = False
         self.current_task = None
         release_key(KEY_W)
+        release_key(KEY_LCTRL)
         release_key(KEY_SPACE)
         send_mc_chat("[Baritone] Task STOPPED.")
         print("\033[91m[STOPPED] Task stopped.\033[0m")
@@ -105,36 +107,103 @@ class BotEngine:
 
     def _run_goto_task(self):
         p = self.task_params
-        steps = p.get('steps', 10)
+        mode = p.get('mode', 'steps')
 
-        # Allow Minecraft in-game chat box to close completely (0.6s)
-        time.sleep(0.6)
+        time.sleep(0.6) # Allow chat box to close completely
 
-        print(f"[GOTO] Walking {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
+        if mode == 'steps':
+            steps = p.get('steps', 10)
+            print(f"[GOTO] Sprinting {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
 
-        # Hold Forward hardware key (Scan Code 0x11 - maps to W on QWERTY and Z on AZERTY)
-        press_key(KEY_W)
+            # Enable Sprint (Left Ctrl) + Forward (W)
+            press_key(KEY_LCTRL)
+            press_key(KEY_W)
 
-        start_time = time.time()
-        walk_duration = steps * 0.4
-        jump_timer = time.time()
+            start_time = time.time()
+            walk_duration = steps * 0.28 # Faster duration when sprinting
+            jump_timer = time.time()
 
-        try:
-            while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                # Swing pickaxe to break obstacle blocks ahead
-                click_mouse_left(duration=0.2)
+            try:
+                while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
+                    click_mouse_left(duration=0.15)
 
-                # Auto-jump over 1-block steps even if Minecraft Auto-Jump setting is OFF
-                if time.time() - jump_timer > 0.7:
-                    press_key(KEY_SPACE)
+                    # Auto-jump over 1-block steps every 0.6s
+                    if time.time() - jump_timer > 0.6:
+                        press_key(KEY_SPACE)
+                        time.sleep(0.08)
+                        release_key(KEY_SPACE)
+                        jump_timer = time.time()
+
                     time.sleep(0.08)
-                    release_key(KEY_SPACE)
-                    jump_timer = time.time()
+            finally:
+                release_key(KEY_W)
+                release_key(KEY_LCTRL)
 
-                time.sleep(0.1)
-        finally:
-            release_key(KEY_W)
+            send_mc_chat(f"[Baritone] Reached destination! Sprinted {steps} blocks.")
+            self.current_task = None
+            self.active = False
 
-        send_mc_chat(f"[Baritone] Reached destination! Walked {steps} blocks with WASD/ZQSD + Jump.")
-        self.current_task = None
-        self.active = False
+        elif mode == 'coords':
+            targetX = p['targetX']
+            targetZ = p['targetZ']
+            print(f"[GOTO] Navigating to coordinates ({targetX}, {targetZ}) using F3 position tracking...")
+
+            # Read initial position via F3+C
+            pos = get_minecraft_position()
+            if pos:
+                print(f"[F3 TRACKER] Start Position: X={pos['x']}, Z={pos['z']}, Yaw={pos['yaw']}")
+
+            # Enable Sprint + Forward
+            press_key(KEY_LCTRL)
+            press_key(KEY_W)
+
+            start_time = time.time()
+            jump_timer = time.time()
+            f3_timer = time.time()
+
+            try:
+                while self.active and self.current_task == 'goto':
+                    # Check position & turn every 1.5s
+                    if time.time() - f3_timer > 1.5:
+                        release_key(KEY_W)
+                        pos = get_minecraft_position()
+                        if pos:
+                            dx = targetX - pos['x']
+                            dz = targetZ - pos['z']
+                            dist = math.sqrt(dx*dx + dz*dz)
+
+                            print(f"[F3 TRACKER] Current: ({round(pos['x'],1)}, {round(pos['z'],1)}) -> Distance: {round(dist, 1)} blocks")
+                            
+                            if dist < 1.8:
+                                print("[GOTO] Reached target coordinate destination!")
+                                break
+
+                            # Calculate required angle
+                            target_yaw = math.atan2(-dx, dz) * (180.0 / math.pi)
+                            yaw_diff = target_yaw - pos['yaw']
+                            
+                            # Turn mouse angle
+                            turn_pixel = int(yaw_diff * 4.5)
+                            if abs(turn_pixel) > 2:
+                                move_mouse(turn_pixel, 0)
+
+                        press_key(KEY_W)
+                        f3_timer = time.time()
+
+                    click_mouse_left(duration=0.15)
+
+                    # Auto-jump over 1-block steps
+                    if time.time() - jump_timer > 0.6:
+                        press_key(KEY_SPACE)
+                        time.sleep(0.08)
+                        release_key(KEY_SPACE)
+                        jump_timer = time.time()
+
+                    time.sleep(0.08)
+            finally:
+                release_key(KEY_W)
+                release_key(KEY_LCTRL)
+
+            send_mc_chat(f"[Baritone] Reached coordinate destination ({targetX}, {targetZ})!")
+            self.current_task = None
+            self.active = False
