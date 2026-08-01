@@ -1,0 +1,16 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+
+# Python bytecode & cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime state & locks
+*.pid
+command_queue.json
+.system_generated/
+.idea/
+.vscode/
+*.log

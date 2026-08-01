@@ -1,0 +1,14 @@
+{
+  "name": "minecraft-mountain-miner",
+  "version": "1.0.0",
+  "description": "Minecraft bot using Mineflayer that clears designated mountain regions and crafts its own pickaxes and shovels.",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "mineflayer": "^4.20.1",
+    "mineflayer-pathfinder": "^2.4.5",
+    "vec3": "^0.1.10"
+  }
+}
