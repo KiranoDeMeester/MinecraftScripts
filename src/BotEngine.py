@@ -2,6 +2,7 @@ import time
 import math
 import threading
 import sys
+import ctypes
 from pynput.keyboard import Key, Listener as KeyboardListener
 from src.ChatNotifier import send_mc_chat
 from src.F3PositionTracker import get_minecraft_position
@@ -9,6 +10,10 @@ from src.DirectInput import (
     press_key, release_key, hold_key, click_mouse_left, click_mouse_right, move_mouse,
     KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
 )
+
+# Windows Virtual Key Codes for Physical Input Checking
+VK_ESCAPE = 0x1B # ESC Key
+VK_S = 0x53      # S Key (Pull back)
 
 class BotEngine:
     _instance = None
@@ -31,28 +36,28 @@ class BotEngine:
 
     def _on_press(self, key):
         try:
-            # F8 / F9 control hotkeys
+            # Control hotkeys: [F8] Start/Pause | [F9] Emergency Stop
             if key == Key.f8:
                 self.toggle_active()
-                return
             elif key == Key.f9:
                 self.stop_engine()
-                return
-
-            # Player Intervention Auto-Cancel:
-            # If bot is active and player presses ANY key manually, stop task immediately!
-            if self.active:
-                print("\033[93m[OVERRIDE] Player touched keyboard! Cancelling active task...\033[0m")
-                self.active = False
-                self.current_task = None
-                release_key(KEY_W)
-                release_key(KEY_A)
-                release_key(KEY_D)
-                release_key(KEY_SPACE)
-                send_mc_chat("[MCA] Player took control. Task cancelled.")
-
         except Exception:
             pass
+
+    def _check_manual_override(self):
+        """Checks physical hardware state of ESC or S key to cleanly cancel task without chunk reload glitches"""
+        GetAsyncKeyState = ctypes.windll.user32.GetAsyncKeyState
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) or (GetAsyncKeyState(VK_S) & 0x8000):
+            print("\033[93m[OVERRIDE] Player pressed ESC/S key! Cancelling active task...\033[0m")
+            self.active = False
+            self.current_task = None
+            release_key(KEY_W)
+            release_key(KEY_A)
+            release_key(KEY_D)
+            release_key(KEY_SPACE)
+            send_mc_chat("[MCA] Manual override (ESC/S). Task cancelled.")
+            return True
+        return False
 
     def toggle_active(self):
         self.active = not self.active
@@ -159,6 +164,8 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
+                    if self._check_manual_override():
+                        break
                     time.sleep(0.08)
             finally:
                 release_key(KEY_W)
@@ -192,6 +199,9 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto':
+                    if self._check_manual_override():
+                        break
+
                     if time.time() - check_timer > 0.8:
                         release_key(KEY_W)
                         current_pos = get_minecraft_position()
@@ -199,7 +209,7 @@ class BotEngine:
                         if current_pos:
                             moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            # Strict threshold: Only jump if player is COMPLETELY stopped (moved < 0.05 blocks)
+                            # Only jump if player is COMPLETELY stopped (moved < 0.05 blocks)
                             if moved_dist < 0.05:
                                 stuck_count += 1
                                 print(f"[SMART JUMP] Step collision detected (moved {round(moved_dist,3)} blocks). Jumping!")
@@ -211,7 +221,7 @@ class BotEngine:
                                     self._unstuck_maneuver()
                                     stuck_count = 0
                             else:
-                                stuck_count = 0 # 0 jumps on flat ground!
+                                stuck_count = 0
 
                             last_pos = current_pos
 
