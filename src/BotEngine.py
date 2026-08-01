@@ -89,24 +89,22 @@ class BotEngine:
         time.sleep(0.1)
 
     def _unstuck_maneuver(self):
-        """Maneuvers sideways and jumps when blocked by a wall or cliff"""
-        print("[UNSTUCK] Wall detected! Executing obstacle avoidance maneuver...")
+        """Maneuvers sideways and jumps when blocked by a tall wall"""
+        print("[UNSTUCK] High wall detected! Navigating around wall...")
         send_mc_chat("[Baritone] Obstacle detected! Navigating around wall...")
         
         release_key(KEY_W)
         time.sleep(0.1)
         
-        # Turn mouse 45 degrees right
-        move_mouse(180, 0)
+        move_mouse(180, 0) # Turn 45 degrees right
         time.sleep(0.1)
         
-        # Jump and step forward-right around obstacle
         press_key(KEY_W)
         press_key(KEY_D)
         press_key(KEY_SPACE)
-        time.sleep(0.6)
+        time.sleep(0.5)
         release_key(KEY_SPACE)
-        time.sleep(0.4)
+        time.sleep(0.3)
         release_key(KEY_D)
         release_key(KEY_W)
         time.sleep(0.1)
@@ -137,22 +135,14 @@ class BotEngine:
 
         if mode == 'steps':
             steps = p.get('steps', 10)
-            print(f"[GOTO] Walking {steps} blocks forward...")
+            print(f"[GOTO] Smooth walking {steps} blocks forward...")
 
             press_key(KEY_W)
-
             start_time = time.time()
             walk_duration = steps * 0.35
-            jump_timer = time.time()
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                    if time.time() - jump_timer > 0.7:
-                        press_key(KEY_SPACE)
-                        time.sleep(0.08)
-                        release_key(KEY_SPACE)
-                        jump_timer = time.time()
-
                     time.sleep(0.08)
             finally:
                 release_key(KEY_W)
@@ -167,48 +157,49 @@ class BotEngine:
 
             pos = get_minecraft_position()
             if not pos:
-                print("[GOTO ERROR] Could not read F3 position.")
                 send_mc_chat("[Baritone] Error: Could not read player position from F3.")
                 self.current_task = None
                 self.active = False
                 return
 
-            # Fill in missing coordinates from current position
             if targetX is None: targetX = pos['x']
             if targetZ is None: targetZ = pos['z']
 
-            print(f"[GOTO] Navigating to target coordinates ({round(targetX, 1)}, {round(targetZ, 1)})...")
+            print(f"[GOTO] Navigating to coordinates ({round(targetX, 1)}, {round(targetZ, 1)})...")
 
             press_key(KEY_W)
 
             last_pos = pos
             stuck_count = 0
-            jump_timer = time.time()
-            f3_timer = time.time()
+            check_timer = time.time()
 
             try:
                 while self.active and self.current_task == 'goto':
-                    # Check position, distance, and wall collision every 1.2s
-                    if time.time() - f3_timer > 1.2:
+                    # Check position every 0.6 seconds
+                    if time.time() - check_timer > 0.6:
                         release_key(KEY_W)
                         current_pos = get_minecraft_position()
                         
                         if current_pos:
-                            # Calculate distance traveled since last check
                             moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            # Check if stuck against a wall
-                            if moved_dist < 0.35:
+                            # ONLY jump if position is NOT moving (hitting a step or wall!)
+                            if moved_dist < 0.15:
                                 stuck_count += 1
-                                if stuck_count >= 2:
+                                print(f"[SMART JUMP] Step detected (moved {round(moved_dist,2)} blocks). Jumping!")
+                                press_key(KEY_SPACE)
+                                time.sleep(0.1)
+                                release_key(KEY_SPACE)
+
+                                if stuck_count >= 3:
                                     self._unstuck_maneuver()
                                     stuck_count = 0
                             else:
-                                stuck_count = 0
+                                stuck_count = 0 # Moving cleanly on flat ground!
 
                             last_pos = current_pos
 
-                            # Calculate distance to target
+                            # Distance to target
                             dx = targetX - current_pos['x']
                             dz = targetZ - current_pos['z']
                             dist_to_target = math.sqrt(dx*dx + dz*dz)
@@ -216,10 +207,10 @@ class BotEngine:
                             print(f"[F3 TRACKER] Pos: ({round(current_pos['x'],1)}, {round(current_pos['z'],1)}) -> Target Dist: {round(dist_to_target, 1)} blocks")
                             
                             if dist_to_target < 1.8:
-                                print("[GOTO] Reached target coordinate destination!")
+                                print("[GOTO] Reached coordinate destination!")
                                 break
 
-                            # Calculate required yaw angle and turn mouse
+                            # Recalculate yaw & turn mouse
                             target_yaw = math.atan2(-dx, dz) * (180.0 / math.pi)
                             yaw_diff = target_yaw - current_pos['yaw']
                             
@@ -228,14 +219,7 @@ class BotEngine:
                                 move_mouse(turn_pixel, 0)
 
                         press_key(KEY_W)
-                        f3_timer = time.time()
-
-                    # Auto-jump over 1-block steps
-                    if time.time() - jump_timer > 0.7:
-                        press_key(KEY_SPACE)
-                        time.sleep(0.08)
-                        release_key(KEY_SPACE)
-                        jump_timer = time.time()
+                        check_timer = time.time()
 
                     time.sleep(0.08)
             finally:
