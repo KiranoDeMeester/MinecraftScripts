@@ -1,27 +1,38 @@
 import time
 import threading
-from pynput.keyboard import Key, Controller as KeyboardController
+import pyperclip
+from src.DirectInput import press_key, release_key, KEY_T, KEY_ENTER
 
-keyboard = KeyboardController()
+# DirectInput scan codes for Ctrl (0x1D) and V (0x2F)
+KEY_CTRL = 0x1D
+KEY_V = 0x2F
 
 def send_mc_chat(message):
-    """Sends a message directly into Minecraft in-game chat box"""
+    """Sends a message into Minecraft chat box instantly via Clipboard Paste (Ctrl+V) to prevent letter stuttering"""
     def _send():
         try:
-            time.sleep(0.15)
-            keyboard.press('t')
-            keyboard.release('t')
+            pyperclip.copy(message)
+            time.sleep(0.1)
+
+            # Open chat with T
+            press_key(KEY_T)
+            time.sleep(0.05)
+            release_key(KEY_T)
             time.sleep(0.2)
 
-            for char in message:
-                keyboard.press(char)
-                keyboard.release(char)
-                time.sleep(0.012)
+            # Paste message with Ctrl + V
+            press_key(KEY_CTRL)
+            press_key(KEY_V)
+            time.sleep(0.05)
+            release_key(KEY_V)
+            release_key(KEY_CTRL)
+            time.sleep(0.15)
 
-            time.sleep(0.15)
-            keyboard.press(Key.enter)
-            keyboard.release(Key.enter)
-            time.sleep(0.15)
+            # Press Enter
+            press_key(KEY_ENTER)
+            time.sleep(0.05)
+            release_key(KEY_ENTER)
+            time.sleep(0.1)
         except Exception as e:
             print(f"[Chat Error] {e}")
 

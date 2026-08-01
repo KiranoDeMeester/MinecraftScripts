@@ -6,7 +6,7 @@ from pynput.keyboard import Key, Listener as KeyboardListener
 from src.ChatNotifier import send_mc_chat
 from src.DirectInput import (
     press_key, release_key, hold_key, click_mouse_left, click_mouse_right, move_mouse,
-    KEY_W, KEY_A, KEY_S, KEY_D, KEY_1, KEY_2, KEY_3
+    KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
 )
 
 class BotEngine:
@@ -50,6 +50,7 @@ class BotEngine:
         self.active = False
         self.current_task = None
         release_key(KEY_W)
+        release_key(KEY_SPACE)
         send_mc_chat("[Baritone] Task STOPPED.")
         print("\033[91m[STOPPED] Task stopped.\033[0m")
 
@@ -93,69 +94,47 @@ class BotEngine:
                     self._eat_food()
                     eat_timer = time.time()
 
-                if self.current_task == 'clear':
-                    self._run_clear_task()
-                elif self.current_task == 'goto':
+                if self.current_task == 'goto':
                     self._run_goto_task()
+                elif self.current_task == 'clear':
+                    send_mc_chat("[Baritone] [WIP] #clear command is currently under development.")
+                    self.current_task = None
+                    self.active = False
                     
             time.sleep(0.1)
 
-    def _run_clear_task(self):
-        p = self.task_params
-        minX, minY, minZ = p['minX'], p['minY'], p['minZ']
-        maxX, maxY, maxZ = p['maxX'], p['maxY'], p['maxZ']
-
-        total_blocks = (abs(maxX - minX) + 1) * (abs(maxY - minY) + 1) * (abs(maxZ - minZ) + 1)
-        mined_blocks = 0
-
-        time.sleep(1.0)
-
-        for y in range(maxY, minY - 1, -1):
-            if not self.active: return
-            
-            for x in range(minX, maxX + 1):
-                for z in range(minZ, maxZ + 1):
-                    if not self.active: return
-
-                    self._equip_tool('shovel' if y > 132 else 'pickaxe')
-
-                    click_mouse_left(duration=0.8)
-
-                    press_key(KEY_W)
-                    time.sleep(0.35)
-                    release_key(KEY_W)
-
-                    mined_blocks += 1
-                    if mined_blocks % 20 == 0:
-                        send_mc_chat(f"[Baritone] Clear progress: {int((mined_blocks/total_blocks)*100)}%")
-                        time.sleep(0.5)
-
-        send_mc_chat("[Baritone] 🎉 #clear command completed successfully!")
-        self.current_task = None
-        self.active = False
-
     def _run_goto_task(self):
         p = self.task_params
-        steps = p.get('steps', 15)
+        steps = p.get('steps', 10)
 
-        # Wait 1 second for chat box to close completely
-        time.sleep(1.0)
+        # Allow Minecraft in-game chat box to close completely (0.6s)
+        time.sleep(0.6)
 
-        print(f"[GOTO] Continuous walk for {steps} blocks...")
+        print(f"[GOTO] Walking {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
 
-        # Hold W key continuously (exact same mechanism as test_move.py)
+        # Hold Forward hardware key (Scan Code 0x11 - maps to W on QWERTY and Z on AZERTY)
         press_key(KEY_W)
-        
+
         start_time = time.time()
-        walk_duration = steps * 0.35
+        walk_duration = steps * 0.4
+        jump_timer = time.time()
 
         try:
             while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                click_mouse_left(duration=0.4)
+                # Swing pickaxe to break obstacle blocks ahead
+                click_mouse_left(duration=0.2)
+
+                # Auto-jump over 1-block steps even if Minecraft Auto-Jump setting is OFF
+                if time.time() - jump_timer > 0.7:
+                    press_key(KEY_SPACE)
+                    time.sleep(0.08)
+                    release_key(KEY_SPACE)
+                    jump_timer = time.time()
+
                 time.sleep(0.1)
         finally:
             release_key(KEY_W)
 
-        send_mc_chat(f"[Baritone] Reached destination! Completed {steps} steps.")
+        send_mc_chat(f"[Baritone] Reached destination! Walked {steps} blocks with WASD/ZQSD + Jump.")
         self.current_task = None
         self.active = False

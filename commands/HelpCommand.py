@@ -16,8 +16,8 @@ USAGE:
   mca <command> [arguments]   (or type #command in Minecraft chat!)
 
 AVAILABLE COMMANDS:
-  clear    Excavate a 3D bounding box region (minX minY minZ maxX maxY maxZ)
-           Example: mca clear 374 126 -339 390 145 -313
+  goto     Navigate player forward with WASD/ZQSD + Auto-Jumping
+           Example: mca goto 10 (or #goto 10 in game)
 
   start    Start / Resume active queued bot task
            Example: mca start (or press F8 / #start in game)
@@ -29,8 +29,8 @@ AVAILABLE COMMANDS:
            Example: mca help (or #help in game)
 
 WORK IN PROGRESS COMMANDS:
-  goto     [WORK IN PROGRESS] Navigate player toward target coordinates
-           Example: mca goto 390 -325
+  clear    [WORK IN PROGRESS] Excavate a 3D bounding box region
+           Example: mca clear 374 126 -339 390 145 -313
 
   mine     [WORK IN PROGRESS] Mine specific block type
            Example: mca mine iron_ore
