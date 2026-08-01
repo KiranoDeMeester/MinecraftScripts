@@ -65,31 +65,47 @@ def start_interactive_daemon():
                  (Minecraft 26.2 Native Edition)                   
 ===================================================================""")
 
-    # Step 1: Check if Minecraft process is open
+    # Step 1: Process Check
     if is_minecraft_running():
         print(" [✓] Minecraft process detected! (javaw.exe / Minecraft.exe is active)")
     else:
         print(" [!] Warning: Minecraft is not currently detected.")
-        print("     Please launch Minecraft 26.2 and open your world.")
 
-    # Step 2: Ask player for hardware test (skippable)
+    # Step 2: Skippable Hardware Test
     run_hardware_test()
 
-    # Step 3: Display available Artisan commands
+    # Step 3: Help Menu
     HelpCommand().handle([])
 
-    # Step 4: Start live log listener for in-game MC chat and CMD
-    print(" [DAEMON ONLINE] Listening for commands directly in Minecraft Chat!")
-    print(" Type #help, #clear, #start, or #stop in Minecraft chat anytime!\n")
-
+    # Step 4: Start In-Game Log Listener
     listener = LogListener(COMMAND_REGISTRY)
     listener.start()
 
-    try:
-        while True:
-            time.sleep(0.5)
-    except KeyboardInterrupt:
-        print("\n [DAEMON OFFLINE] Stopped Minecraft Artisan Daemon.")
+    print(" [DAEMON ONLINE] Ready for commands in CMD terminal or Minecraft Chat!")
+    print(" Type 'exit' to quit cleanly.\n")
+
+    # Step 5: Interactive Terminal Command Loop (mca > )
+    while True:
+        try:
+            line = input("mca > ").strip()
+            if not line:
+                continue
+
+            parts = line.split()
+            cmd_name = parts[0].lower().replace('#', '')
+            cmd_args = parts[1:]
+
+            if cmd_name in ['exit', 'quit']:
+                print("\n[DAEMON OFFLINE] Stopped Minecraft Artisan Daemon.")
+                break
+            elif cmd_name in COMMAND_REGISTRY:
+                COMMAND_REGISTRY[cmd_name].handle(cmd_args)
+            else:
+                print(f"Error: Command '{cmd_name}' is not defined. Type 'help' for command list.")
+
+        except (KeyboardInterrupt, EOFError):
+            print("\n[DAEMON OFFLINE] Stopped Minecraft Artisan Daemon.")
+            break
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1].lower() in ['listen', 'daemon', 'watch', 'start']:
