@@ -41,7 +41,6 @@ class LogListener:
     def _tail_log(self, path):
         try:
             with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                # Seek back 8000 bytes from end so recent commands are not missed on startup
                 f.seek(0, os.SEEK_END)
                 file_size = f.tell()
                 f.seek(max(0, file_size - 8000))
@@ -52,11 +51,10 @@ class LogListener:
                         time.sleep(0.15)
                         continue
 
-                    if "[Baritone]" in line:
+                    if "[MCA]" in line or "[Baritone]" in line:
                         continue
 
                     if "[CHAT]" in line and "#" in line:
-                        # Prevent duplicate execution of exact same log line
                         line_id = hash(line.strip())
                         if line_id not in self.processed_lines:
                             self.processed_lines.add(line_id)
@@ -74,8 +72,8 @@ class LogListener:
             print(f"\x1b[96m[IN-GAME COMMAND DETECTED]\x1b[0m #{cmd_name} {' '.join(raw_args)}")
 
             if cmd_name == "help":
-                send_mc_chat("[Baritone] Commands: #goto <x z> | #clear <box> | #mine | #start | #stop | #help")
+                send_mc_chat("[MCA] Commands: #goto <coords/steps> | #clear | #mine | #start | #stop | #help")
             elif cmd_name in self.registry:
                 self.registry[cmd_name].handle(raw_args)
             else:
-                send_mc_chat(f"[Baritone] Unknown command '#{cmd_name}'. Type #help for available commands.")
+                send_mc_chat(f"[MCA] Unknown command '#{cmd_name}'. Type #help for command list.")

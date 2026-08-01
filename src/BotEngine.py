@@ -31,20 +31,36 @@ class BotEngine:
 
     def _on_press(self, key):
         try:
+            # F8 / F9 control hotkeys
             if key == Key.f8:
                 self.toggle_active()
+                return
             elif key == Key.f9:
                 self.stop_engine()
+                return
+
+            # Player Intervention Auto-Cancel:
+            # If bot is active and player presses ANY key manually, stop task immediately!
+            if self.active:
+                print("\033[93m[OVERRIDE] Player touched keyboard! Cancelling active task...\033[0m")
+                self.active = False
+                self.current_task = None
+                release_key(KEY_W)
+                release_key(KEY_A)
+                release_key(KEY_D)
+                release_key(KEY_SPACE)
+                send_mc_chat("[MCA] Player took control. Task cancelled.")
+
         except Exception:
             pass
 
     def toggle_active(self):
         self.active = not self.active
         if self.active:
-            send_mc_chat("[Baritone] Bot STARTED!")
+            send_mc_chat("[MCA] Bot STARTED!")
             print("\033[92m[ACTIVE] Bot started!\033[0m")
         else:
-            send_mc_chat("[Baritone] Bot PAUSED. Press F8 or #start to resume.")
+            send_mc_chat("[MCA] Bot PAUSED. Press F8 or #start to resume.")
             print("\033[93m[PAUSED] Bot paused.\033[0m")
 
     def stop_engine(self):
@@ -54,7 +70,7 @@ class BotEngine:
         release_key(KEY_A)
         release_key(KEY_D)
         release_key(KEY_SPACE)
-        send_mc_chat("[Baritone] Task STOPPED.")
+        send_mc_chat("[MCA] Task STOPPED.")
         print("\033[91m[STOPPED] Task stopped.\033[0m")
 
     def set_task(self, task_name, params):
@@ -62,7 +78,7 @@ class BotEngine:
         self.task_params = params
 
     def _eat_food(self):
-        send_mc_chat("[Baritone] Eating bread from Slot 1...")
+        send_mc_chat("[MCA] Eating bread from Slot 1...")
         time.sleep(0.5)
         
         press_key(KEY_1)
@@ -91,7 +107,7 @@ class BotEngine:
     def _unstuck_maneuver(self):
         """Maneuvers sideways and jumps when blocked by a tall wall"""
         print("[UNSTUCK] High wall detected! Navigating around wall...")
-        send_mc_chat("[Baritone] Obstacle detected! Navigating around wall...")
+        send_mc_chat("[MCA] Obstacle detected! Navigating around wall...")
         
         release_key(KEY_W)
         time.sleep(0.1)
@@ -121,7 +137,7 @@ class BotEngine:
                 if self.current_task == 'goto':
                     self._run_goto_task()
                 elif self.current_task == 'clear':
-                    send_mc_chat("[Baritone] [WIP] #clear command is currently under development.")
+                    send_mc_chat("[MCA] [WIP] #clear command is currently under development.")
                     self.current_task = None
                     self.active = False
                     
@@ -147,7 +163,8 @@ class BotEngine:
             finally:
                 release_key(KEY_W)
 
-            send_mc_chat(f"[Baritone] Reached destination! Walked {steps} blocks.")
+            if self.active:
+                send_mc_chat(f"[MCA] Reached destination! Walked {steps} blocks.")
             self.current_task = None
             self.active = False
 
@@ -157,7 +174,7 @@ class BotEngine:
 
             pos = get_minecraft_position()
             if not pos:
-                send_mc_chat("[Baritone] Error: Could not read player position from F3.")
+                send_mc_chat("[MCA] Error: Could not read player position from F3.")
                 self.current_task = None
                 self.active = False
                 return
@@ -175,27 +192,26 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto':
-                    # Check position every 0.6 seconds
-                    if time.time() - check_timer > 0.6:
+                    if time.time() - check_timer > 0.8:
                         release_key(KEY_W)
                         current_pos = get_minecraft_position()
                         
                         if current_pos:
                             moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            # ONLY jump if position is NOT moving (hitting a step or wall!)
-                            if moved_dist < 0.15:
+                            # Strict threshold: Only jump if player is COMPLETELY stopped (moved < 0.05 blocks)
+                            if moved_dist < 0.05:
                                 stuck_count += 1
-                                print(f"[SMART JUMP] Step detected (moved {round(moved_dist,2)} blocks). Jumping!")
+                                print(f"[SMART JUMP] Step collision detected (moved {round(moved_dist,3)} blocks). Jumping!")
                                 press_key(KEY_SPACE)
-                                time.sleep(0.1)
+                                time.sleep(0.08)
                                 release_key(KEY_SPACE)
 
                                 if stuck_count >= 3:
                                     self._unstuck_maneuver()
                                     stuck_count = 0
                             else:
-                                stuck_count = 0 # Moving cleanly on flat ground!
+                                stuck_count = 0 # 0 jumps on flat ground!
 
                             last_pos = current_pos
 
@@ -225,6 +241,7 @@ class BotEngine:
             finally:
                 release_key(KEY_W)
 
-            send_mc_chat(f"[Baritone] Reached target destination ({round(targetX, 1)}, {round(targetZ, 1)})!")
+            if self.active:
+                send_mc_chat(f"[MCA] Reached target destination ({round(targetX, 1)}, {round(targetZ, 1)})!")
             self.current_task = None
             self.active = False
