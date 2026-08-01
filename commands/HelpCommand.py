@@ -19,12 +19,6 @@ AVAILABLE COMMANDS:
   clear    Excavate a 3D bounding box region (minX minY minZ maxX maxY maxZ)
            Example: mca clear 374 126 -339 390 145 -313
 
-  goto     Walk toward target X, Z coordinates (Immediate navigation)
-           Example: mca goto 390 -325
-
-  mine     Mine specific block type [WORK IN PROGRESS]
-           Example: mca mine iron_ore
-
   start    Start / Resume active queued bot task
            Example: mca start (or press F8 / #start in game)
 
@@ -33,6 +27,13 @@ AVAILABLE COMMANDS:
 
   help     Display this Artisan help menu
            Example: mca help (or #help in game)
+
+WORK IN PROGRESS COMMANDS:
+  goto     [WORK IN PROGRESS] Navigate player toward target coordinates
+           Example: mca goto 390 -325
+
+  mine     [WORK IN PROGRESS] Mine specific block type
+           Example: mca mine iron_ore
 
 HOTKEYS:
   [F8] -> Start / Pause execution directly inside Minecraft
