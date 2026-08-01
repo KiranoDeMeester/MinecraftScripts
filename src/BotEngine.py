@@ -7,7 +7,7 @@ from src.ChatNotifier import send_mc_chat
 from src.F3PositionTracker import get_minecraft_position
 from src.DirectInput import (
     press_key, release_key, hold_key, click_mouse_left, click_mouse_right, move_mouse,
-    KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LCTRL, KEY_1, KEY_2, KEY_3
+    KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
 )
 
 class BotEngine:
@@ -51,7 +51,6 @@ class BotEngine:
         self.active = False
         self.current_task = None
         release_key(KEY_W)
-        release_key(KEY_LCTRL)
         release_key(KEY_SPACE)
         send_mc_chat("[Baritone] Task STOPPED.")
         print("\033[91m[STOPPED] Task stopped.\033[0m")
@@ -113,22 +112,21 @@ class BotEngine:
 
         if mode == 'steps':
             steps = p.get('steps', 10)
-            print(f"[GOTO] Sprinting {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
+            print(f"[GOTO] Walking {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
 
-            # Enable Sprint (Left Ctrl) + Forward (W)
-            press_key(KEY_LCTRL)
+            # Hold Forward (W/Z) for normal walking
             press_key(KEY_W)
 
             start_time = time.time()
-            walk_duration = steps * 0.28 # Faster duration when sprinting
+            walk_duration = steps * 0.35
             jump_timer = time.time()
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
                     click_mouse_left(duration=0.15)
 
-                    # Auto-jump over 1-block steps every 0.6s
-                    if time.time() - jump_timer > 0.6:
+                    # Auto-jump over 1-block steps every 0.7s
+                    if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
                         time.sleep(0.08)
                         release_key(KEY_SPACE)
@@ -137,9 +135,8 @@ class BotEngine:
                     time.sleep(0.08)
             finally:
                 release_key(KEY_W)
-                release_key(KEY_LCTRL)
 
-            send_mc_chat(f"[Baritone] Reached destination! Sprinted {steps} blocks.")
+            send_mc_chat(f"[Baritone] Reached destination! Walked {steps} blocks.")
             self.current_task = None
             self.active = False
 
@@ -148,13 +145,10 @@ class BotEngine:
             targetZ = p['targetZ']
             print(f"[GOTO] Navigating to coordinates ({targetX}, {targetZ}) using F3 position tracking...")
 
-            # Read initial position via F3+C
             pos = get_minecraft_position()
             if pos:
                 print(f"[F3 TRACKER] Start Position: X={pos['x']}, Z={pos['z']}, Yaw={pos['yaw']}")
 
-            # Enable Sprint + Forward
-            press_key(KEY_LCTRL)
             press_key(KEY_W)
 
             start_time = time.time()
@@ -163,7 +157,6 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto':
-                    # Check position & turn every 1.5s
                     if time.time() - f3_timer > 1.5:
                         release_key(KEY_W)
                         pos = get_minecraft_position()
@@ -178,11 +171,9 @@ class BotEngine:
                                 print("[GOTO] Reached target coordinate destination!")
                                 break
 
-                            # Calculate required angle
                             target_yaw = math.atan2(-dx, dz) * (180.0 / math.pi)
                             yaw_diff = target_yaw - pos['yaw']
                             
-                            # Turn mouse angle
                             turn_pixel = int(yaw_diff * 4.5)
                             if abs(turn_pixel) > 2:
                                 move_mouse(turn_pixel, 0)
@@ -192,8 +183,7 @@ class BotEngine:
 
                     click_mouse_left(duration=0.15)
 
-                    # Auto-jump over 1-block steps
-                    if time.time() - jump_timer > 0.6:
+                    if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
                         time.sleep(0.08)
                         release_key(KEY_SPACE)
@@ -202,7 +192,6 @@ class BotEngine:
                     time.sleep(0.08)
             finally:
                 release_key(KEY_W)
-                release_key(KEY_LCTRL)
 
             send_mc_chat(f"[Baritone] Reached coordinate destination ({targetX}, {targetZ})!")
             self.current_task = None
