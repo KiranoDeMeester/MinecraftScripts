@@ -51,6 +51,8 @@ class BotEngine:
         self.active = False
         self.current_task = None
         release_key(KEY_W)
+        release_key(KEY_A)
+        release_key(KEY_D)
         release_key(KEY_SPACE)
         send_mc_chat("[Baritone] Task STOPPED.")
         print("\033[91m[STOPPED] Task stopped.\033[0m")
@@ -86,6 +88,29 @@ class BotEngine:
             release_key(KEY_3)
         time.sleep(0.1)
 
+    def _unstuck_maneuver(self):
+        """Maneuvers sideways and jumps when blocked by a wall or cliff"""
+        print("[UNSTUCK] Wall detected! Executing obstacle avoidance maneuver...")
+        send_mc_chat("[Baritone] Obstacle detected! Navigating around wall...")
+        
+        release_key(KEY_W)
+        time.sleep(0.1)
+        
+        # Turn mouse 45 degrees right
+        move_mouse(180, 0)
+        time.sleep(0.1)
+        
+        # Jump and step forward-right around obstacle
+        press_key(KEY_W)
+        press_key(KEY_D)
+        press_key(KEY_SPACE)
+        time.sleep(0.6)
+        release_key(KEY_SPACE)
+        time.sleep(0.4)
+        release_key(KEY_D)
+        release_key(KEY_W)
+        time.sleep(0.1)
+
     def _worker_loop(self):
         eat_timer = time.time()
         
@@ -112,9 +137,8 @@ class BotEngine:
 
         if mode == 'steps':
             steps = p.get('steps', 10)
-            print(f"[GOTO] Walking {steps} blocks forward (pure movement, no mining)...")
+            print(f"[GOTO] Walking {steps} blocks forward...")
 
-            # Hold Forward (W/Z) for pure walking
             press_key(KEY_W)
 
             start_time = time.time()
@@ -123,7 +147,6 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                    # Auto-jump over 1-block steps every 0.7s
                     if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
                         time.sleep(0.08)
@@ -139,38 +162,66 @@ class BotEngine:
             self.active = False
 
         elif mode == 'coords':
-            targetX = p['targetX']
-            targetZ = p['targetZ']
-            print(f"[GOTO] Navigating to coordinates ({targetX}, {targetZ}) (pure movement, no mining)...")
+            targetX = p.get('targetX')
+            targetZ = p.get('targetZ')
 
             pos = get_minecraft_position()
-            if pos:
-                print(f"[F3 TRACKER] Start Position: X={pos['x']}, Z={pos['z']}, Yaw={pos['yaw']}")
+            if not pos:
+                print("[GOTO ERROR] Could not read F3 position.")
+                send_mc_chat("[Baritone] Error: Could not read player position from F3.")
+                self.current_task = None
+                self.active = False
+                return
+
+            # Fill in missing coordinates from current position
+            if targetX is None: targetX = pos['x']
+            if targetZ is None: targetZ = pos['z']
+
+            print(f"[GOTO] Navigating to target coordinates ({round(targetX, 1)}, {round(targetZ, 1)})...")
 
             press_key(KEY_W)
 
-            start_time = time.time()
+            last_pos = pos
+            stuck_count = 0
             jump_timer = time.time()
             f3_timer = time.time()
 
             try:
                 while self.active and self.current_task == 'goto':
-                    if time.time() - f3_timer > 1.5:
+                    # Check position, distance, and wall collision every 1.2s
+                    if time.time() - f3_timer > 1.2:
                         release_key(KEY_W)
-                        pos = get_minecraft_position()
-                        if pos:
-                            dx = targetX - pos['x']
-                            dz = targetZ - pos['z']
-                            dist = math.sqrt(dx*dx + dz*dz)
-
-                            print(f"[F3 TRACKER] Current: ({round(pos['x'],1)}, {round(pos['z'],1)}) -> Distance: {round(dist, 1)} blocks")
+                        current_pos = get_minecraft_position()
+                        
+                        if current_pos:
+                            # Calculate distance traveled since last check
+                            moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            if dist < 1.8:
+                            # Check if stuck against a wall
+                            if moved_dist < 0.35:
+                                stuck_count += 1
+                                if stuck_count >= 2:
+                                    self._unstuck_maneuver()
+                                    stuck_count = 0
+                            else:
+                                stuck_count = 0
+
+                            last_pos = current_pos
+
+                            # Calculate distance to target
+                            dx = targetX - current_pos['x']
+                            dz = targetZ - current_pos['z']
+                            dist_to_target = math.sqrt(dx*dx + dz*dz)
+
+                            print(f"[F3 TRACKER] Pos: ({round(current_pos['x'],1)}, {round(current_pos['z'],1)}) -> Target Dist: {round(dist_to_target, 1)} blocks")
+                            
+                            if dist_to_target < 1.8:
                                 print("[GOTO] Reached target coordinate destination!")
                                 break
 
+                            # Calculate required yaw angle and turn mouse
                             target_yaw = math.atan2(-dx, dz) * (180.0 / math.pi)
-                            yaw_diff = target_yaw - pos['yaw']
+                            yaw_diff = target_yaw - current_pos['yaw']
                             
                             turn_pixel = int(yaw_diff * 4.5)
                             if abs(turn_pixel) > 2:
@@ -179,6 +230,7 @@ class BotEngine:
                         press_key(KEY_W)
                         f3_timer = time.time()
 
+                    # Auto-jump over 1-block steps
                     if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
                         time.sleep(0.08)
@@ -189,6 +241,6 @@ class BotEngine:
             finally:
                 release_key(KEY_W)
 
-            send_mc_chat(f"[Baritone] Reached coordinate destination ({targetX}, {targetZ})!")
+            send_mc_chat(f"[Baritone] Reached target destination ({round(targetX, 1)}, {round(targetZ, 1)})!")
             self.current_task = None
             self.active = False
