@@ -112,9 +112,9 @@ class BotEngine:
 
         if mode == 'steps':
             steps = p.get('steps', 10)
-            print(f"[GOTO] Walking {steps} blocks forward with WASD/ZQSD + Auto-Jump...")
+            print(f"[GOTO] Walking {steps} blocks forward (pure movement, no mining)...")
 
-            # Hold Forward (W/Z) for normal walking
+            # Hold Forward (W/Z) for pure walking
             press_key(KEY_W)
 
             start_time = time.time()
@@ -123,8 +123,6 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                    click_mouse_left(duration=0.15)
-
                     # Auto-jump over 1-block steps every 0.7s
                     if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
@@ -143,7 +141,7 @@ class BotEngine:
         elif mode == 'coords':
             targetX = p['targetX']
             targetZ = p['targetZ']
-            print(f"[GOTO] Navigating to coordinates ({targetX}, {targetZ}) using F3 position tracking...")
+            print(f"[GOTO] Navigating to coordinates ({targetX}, {targetZ}) (pure movement, no mining)...")
 
             pos = get_minecraft_position()
             if pos:
@@ -180,8 +178,6 @@ class BotEngine:
 
                         press_key(KEY_W)
                         f3_timer = time.time()
-
-                    click_mouse_left(duration=0.15)
 
                     if time.time() - jump_timer > 0.7:
                         press_key(KEY_SPACE)
