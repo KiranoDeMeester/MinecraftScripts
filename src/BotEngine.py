@@ -30,6 +30,7 @@ class BotEngine:
         self.running = True
         self.current_task = None
         self.task_params = {}
+        self.saved_task = None # Persistent task memory for F8 / #start resume!
         
         # Hardware key monitor thread (F8, F9, ESC, S)
         self.hotkey_thread = threading.Thread(target=self._hotkey_monitor_loop, daemon=True)
@@ -38,6 +39,12 @@ class BotEngine:
         # Worker loop thread
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
+
+    def set_task(self, task_name, params):
+        self.current_task = task_name
+        self.task_params = params
+        self.saved_task = {'name': task_name, 'params': params} # Save task for resume!
+        print(f"\033[96m[TASK SAVED]\033[0m Saved '{task_name}' task to memory.")
 
     def _hotkey_monitor_loop(self):
         """Continuously monitors Windows physical hardware state for F8, F9, ESC, and S keys"""
@@ -65,14 +72,14 @@ class BotEngine:
 
                 # ESC or S Manual Override (while bot is active)
                 if self.active and (esc_state or s_state):
-                    print("\033[93m[OVERRIDE] Player pressed ESC / S key! Cancelling active task...\033[0m")
+                    print("\033[93m[OVERRIDE] Player pressed ESC / S key! Pausing task...\033[0m")
                     self.active = False
                     self.current_task = None
                     release_key(KEY_W)
                     release_key(KEY_A)
                     release_key(KEY_D)
                     release_key(KEY_SPACE)
-                    send_mc_chat("[MCA] Manual override (ESC/S). Task cancelled.")
+                    send_mc_chat("[MCA] Manual override (ESC/S). Task paused. Press F8 or #start to resume.")
 
             except Exception:
                 pass
@@ -82,25 +89,29 @@ class BotEngine:
     def toggle_active(self):
         self.active = not self.active
         if self.active:
-            send_mc_chat("[MCA] Bot STARTED!")
-            print("\033[92m[ACTIVE] Bot started!\033[0m")
+            # Resume saved task if current_task is empty
+            if not self.current_task and self.saved_task:
+                self.current_task = self.saved_task['name']
+                self.task_params = self.saved_task['params']
+                send_mc_chat(f"[MCA] Resumed task '{self.current_task}'!")
+                print(f"\033[92m[RESUMED]\033[0m Resumed saved task '{self.current_task}'!")
+            else:
+                send_mc_chat("[MCA] Bot STARTED!")
+                print("\033[92m[ACTIVE]\033[0m Bot started!")
         else:
             send_mc_chat("[MCA] Bot PAUSED. Press F8 or #start to resume.")
-            print("\033[93m[PAUSED] Bot paused.\033[0m")
+            print("\033[93m[PAUSED]\033[0m Bot paused.")
 
     def stop_engine(self):
         self.active = False
         self.current_task = None
+        self.saved_task = None # Clear saved task on emergency stop!
         release_key(KEY_W)
         release_key(KEY_A)
         release_key(KEY_D)
         release_key(KEY_SPACE)
-        send_mc_chat("[MCA] Task STOPPED.")
-        print("\033[91m[STOPPED] Task stopped.\033[0m")
-
-    def set_task(self, task_name, params):
-        self.current_task = task_name
-        self.task_params = params
+        send_mc_chat("[MCA] Task STOPPED and cleared.")
+        print("\033[91m[STOPPED]\033[0m Task stopped & memory cleared.")
 
     def _eat_food(self):
         send_mc_chat("[MCA] Eating bread from Slot 1...")
@@ -164,6 +175,7 @@ class BotEngine:
                 elif self.current_task == 'clear':
                     send_mc_chat("[MCA] [WIP] #clear command is currently under development.")
                     self.current_task = None
+                    self.saved_task = None
                     self.active = False
                     
             time.sleep(0.1)
@@ -190,6 +202,7 @@ class BotEngine:
 
             if self.active:
                 send_mc_chat(f"[MCA] Reached destination! Walked {steps} blocks.")
+                self.saved_task = None # Task finished successfully! Clear memory!
             self.current_task = None
             self.active = False
 
@@ -218,7 +231,6 @@ class BotEngine:
             try:
                 while self.active and self.current_task == 'goto':
                     if time.time() - check_timer > 0.8:
-                        # Release W key completely BEFORE triggering F3+C so no keys are combined!
                         release_key(KEY_W)
                         time.sleep(0.05)
 
@@ -227,7 +239,6 @@ class BotEngine:
                         if current_pos:
                             moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            # Only jump if player is COMPLETELY stopped against a step (moved < 0.05 blocks)
                             if moved_dist < 0.05:
                                 stuck_count += 1
                                 print(f"[SMART JUMP] Step collision detected (moved {round(moved_dist,3)} blocks). Jumping!")
@@ -262,7 +273,6 @@ class BotEngine:
                             if abs(turn_pixel) > 2:
                                 move_mouse(turn_pixel, 0)
 
-                        # Re-engage W key AFTER F3+C finishes
                         press_key(KEY_W)
                         check_timer = time.time()
 
@@ -272,5 +282,6 @@ class BotEngine:
 
             if self.active:
                 send_mc_chat(f"[MCA] Reached target destination ({round(targetX, 1)}, {round(targetZ, 1)})!")
+                self.saved_task = None # Task finished successfully! Clear memory!
             self.current_task = None
             self.active = False
