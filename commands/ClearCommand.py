@@ -9,4 +9,4 @@ class ClearCommand(BaseCommand):
     def handle(self, args):
         msg = "[WIP] #clear command is currently under development."
         print(f"\033[93m{msg}\033[0m")
-        send_mc_chat(f"[Baritone] {msg}")
+        send_mc_chat(f"[MCA] {msg}")

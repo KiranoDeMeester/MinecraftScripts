@@ -3,7 +3,6 @@ import math
 import threading
 import sys
 import ctypes
-from pynput.keyboard import Key, Listener as KeyboardListener
 from src.ChatNotifier import send_mc_chat
 from src.F3PositionTracker import get_minecraft_position
 from src.DirectInput import (
@@ -11,10 +10,11 @@ from src.DirectInput import (
     KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
 )
 
-# Windows Virtual Key Codes for Physical User Override
-VK_ESCAPE = 0x1B # ESC Key (Pause menu)
-VK_S = 0x53      # S Key (Pull back)
-VK_SPACE = 0x20  # Spacebar
+# Windows Virtual Key Codes
+VK_F8 = 0x77     # [F8] Start / Pause Toggle
+VK_F9 = 0x78     # [F9] Emergency Stop
+VK_ESCAPE = 0x1B # [ESC] Manual Cancel
+VK_S = 0x53      # [S] Manual Cancel (Pull back)
 
 class BotEngine:
     _instance = None
@@ -30,35 +30,54 @@ class BotEngine:
         self.running = True
         self.current_task = None
         self.task_params = {}
+        
+        # Hardware key monitor thread (F8, F9, ESC, S)
+        self.hotkey_thread = threading.Thread(target=self._hotkey_monitor_loop, daemon=True)
+        self.hotkey_thread.start()
+
+        # Worker loop thread
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
-        self.listener = KeyboardListener(on_press=self._on_press)
-        self.listener.start()
 
-    def _on_press(self, key):
-        try:
-            # Control hotkeys: [F8] Start/Pause | [F9] Emergency Stop
-            if key == Key.f8:
-                self.toggle_active()
-            elif key == Key.f9:
-                self.stop_engine()
-        except Exception:
-            pass
-
-    def _check_manual_override(self):
-        """Checks physical hardware state of ESC or S key to cancel bot task immediately"""
+    def _hotkey_monitor_loop(self):
+        """Continuously monitors Windows physical hardware state for F8, F9, ESC, and S keys"""
         GetAsyncKeyState = ctypes.windll.user32.GetAsyncKeyState
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) or (GetAsyncKeyState(VK_S) & 0x8000):
-            print("\033[93m[OVERRIDE] Player touched ESC/S key! Cancelling task...\033[0m")
-            self.active = False
-            self.current_task = None
-            release_key(KEY_W)
-            release_key(KEY_A)
-            release_key(KEY_D)
-            release_key(KEY_SPACE)
-            send_mc_chat("[MCA] Manual override (ESC/S). Task cancelled.")
-            return True
-        return False
+        
+        last_f8 = False
+        last_f9 = False
+        
+        while self.running:
+            try:
+                f8_state = (GetAsyncKeyState(VK_F8) & 0x8000) != 0
+                f9_state = (GetAsyncKeyState(VK_F9) & 0x8000) != 0
+                esc_state = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0
+                s_state = (GetAsyncKeyState(VK_S) & 0x8000) != 0
+
+                # F8 Toggle (on press edge)
+                if f8_state and not last_f8:
+                    self.toggle_active()
+                last_f8 = f8_state
+
+                # F9 Emergency Stop (on press edge)
+                if f9_state and not last_f9:
+                    self.stop_engine()
+                last_f9 = f9_state
+
+                # ESC or S Manual Override (while bot is active)
+                if self.active and (esc_state or s_state):
+                    print("\033[93m[OVERRIDE] Player pressed ESC / S key! Cancelling active task...\033[0m")
+                    self.active = False
+                    self.current_task = None
+                    release_key(KEY_W)
+                    release_key(KEY_A)
+                    release_key(KEY_D)
+                    release_key(KEY_SPACE)
+                    send_mc_chat("[MCA] Manual override (ESC/S). Task cancelled.")
+
+            except Exception:
+                pass
+                
+            time.sleep(0.05)
 
     def toggle_active(self):
         self.active = not self.active
@@ -165,8 +184,6 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto' and (time.time() - start_time) < walk_duration:
-                    if self._check_manual_override():
-                        break
                     time.sleep(0.08)
             finally:
                 release_key(KEY_W)
@@ -200,11 +217,8 @@ class BotEngine:
 
             try:
                 while self.active and self.current_task == 'goto':
-                    if self._check_manual_override():
-                        break
-
                     if time.time() - check_timer > 0.8:
-                        # RELEASE W key completely BEFORE triggering F3+C so no keys are combined!
+                        # Release W key completely BEFORE triggering F3+C so no keys are combined!
                         release_key(KEY_W)
                         time.sleep(0.05)
 
