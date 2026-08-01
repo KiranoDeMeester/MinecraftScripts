@@ -97,11 +97,10 @@ def move_mouse(dx, dy):
     ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, 0)
 
 def trigger_f3_c():
-    """Triggers F3+C to copy player position and yaw to Windows Clipboard"""
+    """Triggers F3+C instantly in 0.02s and releases F3 immediately to prevent F3+A / F3+S chunk reload glitches"""
     press_key(KEY_F3)
-    time.sleep(0.1)
     press_key(KEY_C)
-    time.sleep(0.3)
+    time.sleep(0.02)
     release_key(KEY_C)
     release_key(KEY_F3)
-    time.sleep(0.2)
+    time.sleep(0.05)

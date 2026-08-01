@@ -11,9 +11,10 @@ from src.DirectInput import (
     KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_1, KEY_2, KEY_3
 )
 
-# Windows Virtual Key Codes for Physical Input Checking
-VK_ESCAPE = 0x1B # ESC Key
+# Windows Virtual Key Codes for Physical User Override
+VK_ESCAPE = 0x1B # ESC Key (Pause menu)
 VK_S = 0x53      # S Key (Pull back)
+VK_SPACE = 0x20  # Spacebar
 
 class BotEngine:
     _instance = None
@@ -45,10 +46,10 @@ class BotEngine:
             pass
 
     def _check_manual_override(self):
-        """Checks physical hardware state of ESC or S key to cleanly cancel task without chunk reload glitches"""
+        """Checks physical hardware state of ESC or S key to cancel bot task immediately"""
         GetAsyncKeyState = ctypes.windll.user32.GetAsyncKeyState
         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) or (GetAsyncKeyState(VK_S) & 0x8000):
-            print("\033[93m[OVERRIDE] Player pressed ESC/S key! Cancelling active task...\033[0m")
+            print("\033[93m[OVERRIDE] Player touched ESC/S key! Cancelling task...\033[0m")
             self.active = False
             self.current_task = None
             release_key(KEY_W)
@@ -203,13 +204,16 @@ class BotEngine:
                         break
 
                     if time.time() - check_timer > 0.8:
+                        # RELEASE W key completely BEFORE triggering F3+C so no keys are combined!
                         release_key(KEY_W)
+                        time.sleep(0.05)
+
                         current_pos = get_minecraft_position()
                         
                         if current_pos:
                             moved_dist = math.sqrt((current_pos['x'] - last_pos['x'])**2 + (current_pos['z'] - last_pos['z'])**2)
                             
-                            # Only jump if player is COMPLETELY stopped (moved < 0.05 blocks)
+                            # Only jump if player is COMPLETELY stopped against a step (moved < 0.05 blocks)
                             if moved_dist < 0.05:
                                 stuck_count += 1
                                 print(f"[SMART JUMP] Step collision detected (moved {round(moved_dist,3)} blocks). Jumping!")
@@ -244,6 +248,7 @@ class BotEngine:
                             if abs(turn_pixel) > 2:
                                 move_mouse(turn_pixel, 0)
 
+                        # Re-engage W key AFTER F3+C finishes
                         press_key(KEY_W)
                         check_timer = time.time()
 
